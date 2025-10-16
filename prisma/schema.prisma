@@ -1,0 +1,432 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model DonationRequest {
+  id                    String                 @id @default(cuid())
+  images                String?                @db.LongText
+  title                 String
+  description           String                 @db.Text
+  slug                  String                 @unique
+  categoryId            String
+  acceptsMoney          Boolean                @default(false)
+  acceptsItems          Boolean                @default(false)
+  acceptsVolunteer      Boolean                @default(false)
+  targetAmount          Decimal                @default(0.00) @db.Decimal(12, 2)
+  currentAmount         Decimal                @default(0.00) @db.Decimal(12, 2)
+  supporters            Int?                   @default(0)
+  documents             String?                @db.LongText
+  status                DonationRequestStatus  @default(DRAFT)
+  goalAmount            Float?
+  organizerId           String
+  organizationId        String?
+  urgency               UrgencyLevel?          @default(LOW)
+  approvedBy            String?
+  approvedAt            DateTime?
+  volunteersReceived    Int                    @default(0)
+  itemDetails           String?                @db.LongText
+  volunteerDetails      String?                @db.LongText
+  donationType          DonationType?
+  paymentMethods        String?                @db.LongText
+  viewCount             Int                    @default(0)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  expiresAt             DateTime?
+  volunteersNeeded      Int                    @default(0)
+  volunteerSkills       String?                @db.LongText
+  volunteerDuration     String?
+  itemsNeeded           String?                @db.LongText
+  recommendationScore   Float                  @default(0)
+  location              String?
+  latitude              Float?
+  longitude             Float?
+  category              category               @relation(fields: [categoryId], references: [id])
+  organization          organization?          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizer             user                   @relation("OrganizerRequests", fields: [organizerId], references: [id], onDelete: Cascade)
+  donations             Donation[]
+  favorites             Favorite[]
+  shares                Share[]
+  stories               Story[]
+  volunteerApplications VolunteerApplication[]
+
+  @@index([slug])
+  @@index([status])
+  @@index([createdAt])
+  @@index([categoryId, status, expiresAt])
+  @@index([organizationId])
+  @@index([organizerId], map: "donation_requests_organizerId_fkey")
+  @@map("donation_requests")
+}
+
+model Donation {
+  id            String          @id @default(cuid())
+  amount        Decimal         @default(0.00) @db.Decimal(12, 2)
+  itemDetails   String?
+  type          DonationType
+  status        DonationStatus  @default(PENDING)
+  donorId       String
+  requestId     String
+  requestTitle   String?
+  transactionId   String?
+  paymentMethod  String?
+  trackingNumber String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  completedAt   DateTime?
+  donor         user            @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  request       DonationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([donorId], map: "donations_donorId_fkey")
+  @@index([requestId], map: "donations_requestId_fkey")
+  @@map("donations")
+}
+
+model VolunteerApplication {
+  id             String          @id @default(cuid())
+  message        String
+  skills         String?         @db.LongText
+  experience     String?
+  availability   String?
+  status         VolunteerStatus @default(APPLIED)
+  hoursCommitted Int?
+  startDate      DateTime?
+  endDate        DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  approvedAt     DateTime?
+  completedAt    DateTime?
+  volunteerId    String
+  requestId      String
+  request        DonationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  volunteer      user            @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([requestId], map: "volunteer_applications_requestId_fkey")
+  @@index([volunteerId], map: "volunteer_applications_volunteerId_fkey")
+  @@map("volunteer_applications")
+}
+
+model Story {
+  id                String           @id @default(cuid())
+  title             String
+  content           String           @db.Text
+  slug              String           @unique
+  images            String?          @db.LongText
+  videos            String?          @db.LongText
+  status            StoryStatus      @default(DRAFT)
+  authorId          String
+  donationRequestId String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  publishedAt       DateTime?
+  views             Int              @default(0)
+  shares            Share[]
+  author            user             @relation("AuthorStories", fields: [authorId], references: [id], onDelete: Cascade)
+  donationRequest   DonationRequest? @relation(fields: [donationRequestId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([donationRequestId])
+  @@index([authorId], map: "stories_authorId_fkey")
+  @@map("stories")
+}
+
+model Favorite {
+  id        String          @id @default(cuid())
+  userId    String
+  requestId String
+  createdAt DateTime        @default(now())
+  request   DonationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  user      user            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, requestId])
+  @@index([requestId], map: "favorites_requestId_fkey")
+  @@map("favorites")
+}
+
+model Share {
+  id        String           @id @default(cuid())
+  userId    String
+  requestId String?
+  storyId   String?
+  platform  String
+  createdAt DateTime         @default(now())
+  request   DonationRequest? @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  story     Story?           @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  user      user             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([requestId], map: "shares_requestId_fkey")
+  @@index([storyId], map: "shares_storyId_fkey")
+  @@index([userId], map: "shares_userId_fkey")
+  @@map("shares")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([isRead])
+  @@index([userId], map: "notifications_userId_fkey")
+  @@map("notifications")
+}
+
+model Analytics {
+  id        String   @id @default(cuid())
+  metric    String
+  value     Int
+  createdAt DateTime @default(now())
+
+  @@index([metric])
+  @@index([createdAt])
+  @@map("analytics")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String
+  entityType String
+  entityId   String
+  createdAt  DateTime @default(now())
+  user       user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([entityType, entityId])
+  @@index([userId], map: "audit_logs_userId_fkey")
+  @@map("audit_logs")
+}
+
+model SystemSettings {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+model category {
+  id                                                          String            @id
+  name                                                        String            @unique(map: "Category_name_key")
+  donationRequests                                            DonationRequest[]
+  relatedcategory_relatedcategory_categoryIdTocategory        relatedcategory[] @relation("relatedcategory_categoryIdTocategory")
+  relatedcategory_relatedcategory_relatedCategoryIdTocategory relatedcategory[] @relation("relatedcategory_relatedCategoryIdTocategory")
+  userinterest                                                userinterest[]
+}
+
+model interest {
+  id           String         @id
+  label        String
+  description  String?
+  icon         String
+  category     String
+  userinterest userinterest[]
+}
+
+model organization {
+  id                 String            @id @default(cuid())
+  name               String            @unique(map: "Organization_name_key")
+  type               organization_type @default(OTHER)
+  phone              String?
+  address            String?
+  website            String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  registrationNumber String?
+  templeId           String?
+  donationRequests   DonationRequest[]
+  user               user[]
+}
+
+model pointstransaction {
+  id          String   @id
+  userId      String
+  type        String
+  amount      Int
+  source      String
+  description String
+  date        DateTime
+  relatedId   String?
+  user        user     @relation(fields: [userId], references: [id], map: "PointsTransaction_userId_fkey")
+
+  @@index([userId], map: "PointsTransaction_userId_fkey")
+}
+
+model relatedcategory {
+  id                                                   String   @id
+  categoryId                                           String
+  relatedCategoryId                                    String
+  similarity                                           Float    @default(0)
+  category_relatedcategory_categoryIdTocategory        category @relation("relatedcategory_categoryIdTocategory", fields: [categoryId], references: [id], onDelete: Cascade, map: "RelatedCategory_categoryId_fkey")
+  category_relatedcategory_relatedCategoryIdTocategory category @relation("relatedcategory_relatedCategoryIdTocategory", fields: [relatedCategoryId], references: [id], onDelete: Cascade, map: "RelatedCategory_relatedCategoryId_fkey")
+
+  @@unique([categoryId, relatedCategoryId], map: "RelatedCategory_categoryId_relatedCategoryId_key")
+  @@index([relatedCategoryId], map: "RelatedCategory_relatedCategoryId_fkey")
+}
+
+model reward {
+  id        String    @id
+  userId    String
+  rewardId  String
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+  user      user      @relation(fields: [userId], references: [id], map: "Reward_userId_fkey")
+
+  @@index([userId], map: "Reward_userId_fkey")
+}
+
+model user {
+  id                    String                 @id @default(cuid())
+  email                 String                 @unique(map: "User_email_key")
+  avatar                String?
+  password              String
+  firstName             String?
+  lastName              String?
+  phone                 String?
+  bio                   String?                @db.Text
+  role                  user_role              @default(DONOR)
+  status                user_status            @default(ACTIVE)
+  totalDonated          Float                  @default(0)
+  donationCount         Int                    @default(0)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  customization         String?                @db.LongText
+  organizationId        String?
+  preferredCategories   String?                @db.LongText
+  idCardUrl             String?
+  isEmailVerified       Boolean                @default(false)
+  organizationCertUrl   String?
+  documentsVerified     Boolean                @default(false)
+  location              String?
+  latitude              Float?
+  longitude             Float?
+  auditLogs             AuditLog[]
+  donationRequests      DonationRequest[]      @relation("OrganizerRequests")
+  donations             Donation[]
+  favorites             Favorite[]
+  notifications         Notification[]
+  pointstransaction     pointstransaction[]
+  reward                reward[]
+  shares                Share[]
+  stories               Story[]                @relation("AuthorStories")
+  organization          organization?          @relation(fields: [organizationId], references: [id], map: "User_organizationId_fkey")
+  userinteraction       userinteraction[]
+  userinterest          userinterest[]
+  volunteerApplications VolunteerApplication[]
+
+  @@index([email], map: "User_email_idx")
+  @@index([organizationId], map: "User_organizationId_fkey")
+}
+
+model userinteraction {
+  id               String                          @id @default(cuid())
+  userId           String
+  interactionType  userinteraction_interactionType
+  interactionValue Int                             @default(1)
+  entityType       String
+  entityId         String
+  createdAt        DateTime                        @default(now())
+  duration         Int?
+  weight           Float?                          @default(1)
+  user             user                            @relation(fields: [userId], references: [id], onDelete: Cascade, map: "UserInteraction_userId_fkey")
+
+  @@index([entityType, entityId], map: "UserInteraction_entityType_entityId_idx")
+  @@index([interactionType], map: "UserInteraction_interactionType_idx")
+  @@index([userId, entityId, interactionType], map: "UserInteraction_userId_entityId_interactionType_idx")
+}
+
+model userinterest {
+  userId     String
+  interestId String
+  categoryId String?
+  category   category? @relation(fields: [categoryId], references: [id], map: "UserInterest_categoryId_fkey")
+  interest   interest  @relation(fields: [interestId], references: [id], map: "UserInterest_interestId_fkey")
+  user       user      @relation(fields: [userId], references: [id], map: "UserInterest_userId_fkey")
+
+  @@id([userId, interestId])
+  @@index([categoryId], map: "UserInterest_categoryId_fkey")
+  @@index([interestId], map: "UserInterest_interestId_fkey")
+}
+
+enum DonationRequestStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+  CANCELLED
+}
+
+enum DonationType {
+  MONEY
+  ITEMS
+  VOLUNTEER
+}
+
+enum DonationStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum VolunteerStatus {
+  APPLIED
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum StoryStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum UrgencyLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum organization_type {
+  NGO
+  CHARITY
+  FOUNDATION
+  GOVERNMENT
+  TEMPLE
+  OTHER
+}
+
+enum userinteraction_interactionType {
+  VIEW
+  FAVORITE
+  SHARE
+  SKIP
+}
+
+enum user_role {
+  DONOR
+  ORGANIZER
+  ADMIN
+}
+
+enum user_status {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
