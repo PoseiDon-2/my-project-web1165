@@ -1,7 +1,9 @@
 // prisma/seed.ts
 import { user_role, user_status, DonationRequestStatus, Prisma } from '@prisma/client';
 import { hash } from 'bcryptjs';
-import prisma from '../lib/prisma';
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
+
 
 async function main() {
     console.log('🌱 เริ่มต้นการ seed ข้อมูลสำหรับแอดมิน...');
