@@ -13,18 +13,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "../../components/auth-context";
 
-// อัปเดต interface ให้สอดคล้องกับ schema
+interface Category {
+  id: string;
+  value: string;
+  label: string;
+  icon: string;
+}
+
 interface CreateRequestData {
   title: string;
   description: string;
   category: string;
-  donationType: string[]; // คงไว้เพื่อ UI แต่จะแปลงเป็น acceptsMoney, acceptsItems, acceptsVolunteer
+  donationType: string[];
   goalAmount?: number;
   goalItems?: string;
   goalVolunteers?: number;
   volunteerDetails?: string;
   volunteerDuration?: string;
-  location: string; // เปลี่ยนจาก address เป็น location
+  location: string;
   detailedAddress: string;
   contactPhone: string;
   bankAccount: {
@@ -33,7 +39,7 @@ interface CreateRequestData {
     accountName: string;
   };
   organizationDetails: {
-    organizationType: string; // จะแปลงเป็นค่าที่ถูกต้องใน enum
+    organizationType: string;
     registrationNumber: string;
     taxId: string;
   };
@@ -41,7 +47,6 @@ interface CreateRequestData {
   urgency?: string;
 }
 
-// อัปเดต organizationTypes ให้ตรงกับ enum organization_type
 const organizationTypes = [
   { value: "NGO", label: "องค์กรไม่แสวงหาผลกำไร", icon: "🌟" },
   { value: "CHARITY", label: "องค์กรการกุศล", icon: "🤝" },
@@ -84,7 +89,7 @@ export default function CreateRequest() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  const [categories, setCategories] = useState<{ value: string; label: string; icon: string }[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<CreateRequestData>({
@@ -97,7 +102,7 @@ export default function CreateRequest() {
     goalVolunteers: undefined,
     volunteerDetails: "",
     volunteerDuration: "",
-    location: "", // เปลี่ยนจาก address เป็น location
+    location: "",
     detailedAddress: "",
     contactPhone: user?.phone || "",
     bankAccount: {
@@ -114,7 +119,6 @@ export default function CreateRequest() {
   });
 
   useEffect(() => {
-    // Redirect if not organizer
     if (!user || user.role !== "ORGANIZER") {
       router.push("/");
       return;
@@ -130,6 +134,7 @@ export default function CreateRequest() {
           console.log("Categories data:", data);
           setCategories(
             data.map((cat: { id: string; name: string }) => ({
+              id: cat.id,
               value: cat.name,
               label: {
                 disaster: "ภัยพิบัติ",
@@ -142,7 +147,7 @@ export default function CreateRequest() {
                 disability: "ผู้พิการ",
                 community: "ชุมชน",
                 religion: "ศาสนา",
-              }[cat.name] || cat.name,
+              }[cat.name.toLowerCase()] || cat.name,
               icon: {
                 disaster: "🌊",
                 medical: "🏥",
@@ -154,22 +159,31 @@ export default function CreateRequest() {
                 disability: "♿",
                 community: "🏘️",
                 religion: "🙏",
-              }[cat.name] || "📍",
+              }[cat.name.toLowerCase()] || "📍",
             }))
           );
         } else {
           console.error("Failed to fetch categories:", response.statusText);
           setError("ไม่สามารถโหลดหมวดหมู่ได้");
+          setCategories([
+            { id: "1", value: "education", label: "การศึกษา", icon: "📚" },
+            { id: "2", value: "medical", label: "การแพทย์", icon: "🏥" },
+            { id: "3", value: "disaster", label: "ภัยพิบัติ", icon: "🌊" },
+          ]);
         }
       } catch (error) {
         console.error("Error fetching categories:", error);
         setError("เกิดข้อผิดพลาดในการโหลดหมวดหมู่");
+        setCategories([
+          { id: "1", value: "education", label: "การศึกษา", icon: "📚" },
+          { id: "2", value: "medical", label: "การแพทย์", icon: "🏥" },
+          { id: "3", value: "disaster", label: "ภัยพิบัติ", icon: "🌊" },
+        ]);
       }
     };
     fetchCategories();
   }, [user, router]);
 
-  // Early return if not organizer
   if (!user || user.role !== "ORGANIZER") {
     return null;
   }
@@ -206,7 +220,6 @@ export default function CreateRequest() {
     const newTypes = formData.donationType.includes(type)
       ? formData.donationType.filter((t) => t !== type)
       : [...formData.donationType, type];
-
     setFormData({
       ...formData,
       donationType: newTypes,
@@ -233,7 +246,6 @@ export default function CreateRequest() {
     setError("");
     setIsSubmitting(true);
 
-    // Validation
     if (categories.length === 0) {
       setError("ไม่สามารถโหลดหมวดหมู่ได้ กรุณาลองใหม่");
       setIsSubmitting(false);
@@ -246,8 +258,14 @@ export default function CreateRequest() {
       return;
     }
 
-    if (!categories.map(c => c.value).includes(formData.category)) {
+    if (!categories.find(c => c.value === formData.category)) {
       setError("กรุณาเลือกหมวดหมู่ที่ถูกต้อง");
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!organizationTypes.map(t => t.value).includes(formData.organizationDetails.organizationType)) {
+      setError("กรุณาเลือกประเภทองค์กรที่ถูกต้อง");
       setIsSubmitting(false);
       return;
     }
@@ -295,7 +313,6 @@ export default function CreateRequest() {
       return;
     }
 
-    // Handle image upload
     let imageUrl: string | undefined;
     if (formData.image) {
       try {
@@ -319,40 +336,37 @@ export default function CreateRequest() {
       }
     }
 
-    // Prepare data for API
     const requestData = {
       title: formData.title,
       description: formData.description,
-      category: formData.category,
-      location: formData.location || null, // เปลี่ยนจาก address เป็น location
+      categoryId: categories.find(c => c.value === formData.category)?.id || formData.category,
+      location: formData.location || null,
       urgency: formData.urgency || "MEDIUM",
       acceptsMoney: formData.donationType.includes("money"),
       acceptsItems: formData.donationType.includes("items"),
       acceptsVolunteer: formData.donationType.includes("volunteer"),
       targetAmount: formData.goalAmount ? Number(formData.goalAmount) : undefined,
-      itemsNeeded: formData.goalItems ? formData.goalItems.split(",").map(item => item.trim()) : null,
+      itemsNeeded: formData.goalItems ? formData.goalItems.split(",").map(item => item.trim()).filter(item => item) : [],
       volunteersNeeded: formData.goalVolunteers ? Number(formData.goalVolunteers) : 0,
-      volunteerSkills: formData.volunteerDetails ? formData.volunteerDetails.split(",").map(skill => skill.trim()) : [],
+      volunteerSkills: formData.volunteerDetails ? formData.volunteerDetails.split(",").map(skill => skill.trim()).filter(skill => skill) : [],
       volunteerDuration: formData.volunteerDuration || null,
       images: imageUrl ? [imageUrl] : [],
       documents: {
         detailedAddress: formData.detailedAddress || null,
         contactPhone: formData.contactPhone || null,
-        bankAccount: formData.donationType.includes("money")
-          ? {
-              bank: formData.bankAccount.bank,
-              accountNumber: formData.bankAccount.accountNumber,
-              accountName: formData.bankAccount.accountName,
-            }
-          : undefined,
+        bankAccount: formData.donationType.includes("money") ? {
+          bank: formData.bankAccount.bank,
+          accountNumber: formData.bankAccount.accountNumber,
+          accountName: formData.bankAccount.accountName,
+        } : undefined,
         organizationDetails: {
-          organizationType: formData.organizationDetails.organizationType === "school" 
-            ? "OTHER" 
-            : formData.organizationDetails.organizationType,
+          organizationType: formData.organizationDetails.organizationType === "school" ? "OTHER" : formData.organizationDetails.organizationType,
           registrationNumber: formData.organizationDetails.registrationNumber,
           taxId: formData.organizationDetails.taxId || null,
         },
       },
+      status: process.env.NEXT_PUBLIC_AUTO_APPROVE === 'true' ? 'APPROVED' : 'PENDING',
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
     };
 
     console.log("Request Data:", JSON.stringify(requestData, null, 2));
@@ -376,8 +390,8 @@ export default function CreateRequest() {
 
       const responseData = await response.json();
       console.log("API Response:", responseData);
-
       if (!response.ok) {
+        console.error("API Error Details:", responseData);
         if (responseData.details) {
           const errorMessages = responseData.details
             .map((e: any) => e.message)
@@ -390,7 +404,7 @@ export default function CreateRequest() {
           throw new Error(responseData.error || "เกิดข้อผิดพลาดในการสร้างคำขอ");
         }
       }
-
+      console.log("Created request ID:", responseData.id);
       setSuccess(true);
       setIsSubmitting(false);
       setTimeout(() => router.push("/organizer-dashboard"), 2000);
@@ -422,7 +436,9 @@ export default function CreateRequest() {
               <span className="text-2xl">✅</span>
             </div>
             <h2 className="text-2xl font-bold text-gray-800 mb-2">สร้างคำขอสำเร็จ!</h2>
-            <p className="text-gray-600 mb-4">คำขอบริจาคของคุณได้ถูกส่งไปรอการอนุมัติแล้ว</p>
+            <p className="text-gray-600 mb-4">
+              คำขอบริจาคของคุณ{process.env.NEXT_PUBLIC_AUTO_APPROVE === 'true' ? 'พร้อมแสดงในระบบแล้ว' : 'ได้ถูกส่งไปรอการอนุมัติแล้ว'}
+            </p>
             <p className="text-sm text-gray-500">กำลังนำคุณไปยังหน้าจัดการ...</p>
           </CardContent>
         </Card>
@@ -514,7 +530,7 @@ export default function CreateRequest() {
                         </SelectTrigger>
                         <SelectContent>
                           {categories.map((category) => (
-                            <SelectItem key={category.value} value={category.value}>
+                            <SelectItem key={category.id} value={category.value}>
                               <div className="flex items-center gap-2">
                                 <span>{category.icon}</span>
                                 <span>{category.label}</span>
@@ -670,10 +686,11 @@ export default function CreateRequest() {
                     {donationTypes.map((type) => (
                       <div
                         key={type.value}
-                        className={`border rounded-lg p-4 cursor-pointer transition-all ${formData.donationType.includes(type.value)
-                          ? `${type.color} border-2`
-                          : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                          }`}
+                        className={`border rounded-lg p-4 cursor-pointer transition-all ${
+                          formData.donationType.includes(type.value)
+                            ? `${type.color} border-2`
+                            : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                        }`}
                         onClick={() => handleDonationTypeToggle(type.value)}
                       >
                         <div className="flex items-start gap-3">
@@ -692,7 +709,10 @@ export default function CreateRequest() {
                             <p className="text-sm text-gray-600 mb-2">{type.description}</p>
                             <div className="flex flex-wrap gap-1">
                               {type.examples.map((example, index) => (
-                                <span key={index} className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
+                                <span
+                                  key={index}
+                                  className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full"
+                                >
                                   {example}
                                 </span>
                               ))}
@@ -1167,32 +1187,28 @@ export default function CreateRequest() {
     const requestData = {
       title: formData.title || "ร่างคำขอ",
       description: formData.description || "ร่างคำขอที่ยังไม่สมบูรณ์",
-      category: formData.category || categories[0]?.value || "education",
-      location: formData.location || null, // เปลี่ยนจาก address เป็น location
+      categoryId: categories.find(c => c.value === formData.category)?.id || formData.category || categories[0]?.id || "1",
+      location: formData.location || null,
       urgency: formData.urgency || "MEDIUM",
       acceptsMoney: formData.donationType.includes("money"),
       acceptsItems: formData.donationType.includes("items"),
       acceptsVolunteer: formData.donationType.includes("volunteer"),
       targetAmount: formData.goalAmount ? Number(formData.goalAmount) : undefined,
-      itemsNeeded: formData.goalItems ? formData.goalItems.split(",").map(item => item.trim()) : null,
+      itemsNeeded: formData.goalItems ? formData.goalItems.split(",").map(item => item.trim()).filter(item => item) : [],
       volunteersNeeded: formData.goalVolunteers ? Number(formData.goalVolunteers) : 0,
-      volunteerSkills: formData.volunteerDetails ? formData.volunteerDetails.split(",").map(skill => skill.trim()) : [],
+      volunteerSkills: formData.volunteerDetails ? formData.volunteerDetails.split(",").map(skill => skill.trim()).filter(skill => skill) : [],
       volunteerDuration: formData.volunteerDuration || null,
       images: [],
       documents: {
         detailedAddress: formData.detailedAddress || null,
         contactPhone: formData.contactPhone || null,
-        bankAccount: formData.donationType.includes("money")
-          ? {
-              bank: formData.bankAccount.bank,
-              accountNumber: formData.bankAccount.accountNumber,
-              accountName: formData.bankAccount.accountName,
-            }
-          : undefined,
+        bankAccount: formData.donationType.includes("money") ? {
+          bank: formData.bankAccount.bank,
+          accountNumber: formData.bankAccount.accountNumber,
+          accountName: formData.bankAccount.accountName,
+        } : undefined,
         organizationDetails: {
-          organizationType: formData.organizationDetails.organizationType === "school" 
-            ? "OTHER" 
-            : formData.organizationDetails.organizationType || undefined,
+          organizationType: formData.organizationDetails.organizationType === "school" ? "OTHER" : formData.organizationDetails.organizationType || undefined,
           registrationNumber: formData.organizationDetails.registrationNumber || undefined,
           taxId: formData.organizationDetails.taxId || null,
         },
@@ -1231,6 +1247,7 @@ export default function CreateRequest() {
             }
             throw new Error(responseData.error || "ไม่สามารถบันทึกร่างได้");
           }
+          console.log("Draft request ID:", responseData.id);
           setSuccess(true);
           setIsSubmitting(false);
           setTimeout(() => router.push("/organizer-dashboard"), 2000);

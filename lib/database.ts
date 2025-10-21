@@ -248,77 +248,132 @@ export const userService = {
   },
 
   async findById(id: string): Promise<UserResponse | null> {
-    try {
-      const user = await prisma.user.findUnique({
-        where: { id },
-        include: {
-          organization: {
-            select: { id: true, name: true, type: true },
-          },
-          userinterest: {
-            select: { interestId: true },
-          },
-          donations: {
-            select: {
-              id: true,
-              requestId: true,
-              type: true,
-              createdAt: true,
-              status: true,
-              amount: true,
-              itemDetails: true,
-            },
-            include: {
-              request: {
-                select: {
-                  title: true,
-                },
+  try {
+    console.log('Fetching user with ID:', id);
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        avatar: true,
+        bio: true,
+        createdAt: true,
+        role: true,
+        isEmailVerified: true,
+        documentsVerified: true,
+        organization: {
+          select: { id: true, name: true, type: true },
+        },
+        userinterest: {
+          select: { interestId: true },
+        },
+        donations: {
+          select: {
+            id: true,
+            requestId: true,
+            type: true,
+            createdAt: true,
+            status: true,
+            amount: true,
+            itemDetails: true,
+            request: {  // ย้ายจาก include ไป select
+              select: {
+                title: true,
               },
             },
           },
-          donationRequests: { include: { donations: true, volunteerApplications: true } },
-          volunteerApplications: { include: { request: true } },
         },
-      });
-      if (!user) return null;
-      return {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        phone: user.phone || undefined,
-        avatar: user.avatar || undefined,
-        bio: user.bio || undefined,
-        joinDate: user.createdAt.toISOString(),
-        totalDonated: user.donations.reduce((sum: number, d) => sum + Number(d.amount || 0), 0),
-        donationCount: user.donations.length,
-        preferredCategories: user.userinterest.map((ui) => ui.interestId),
-        favoriteCategories: user.userinterest.map((ui) => ui.interestId),
-        interests: user.userinterest.map((ui) => ui.interestId),
-        role: user.role,
-        organizationId: user.organization?.id,
-        organizationName: user.organization?.name,
-        organizationType: user.organization?.type,
-        isVerified: user.isEmailVerified && (user.documentsVerified || user.role !== "ORGANIZER"),
-        isEmailVerified: user.isEmailVerified,
-        documentsVerified: user.documentsVerified,
-        donations: user.donations.map((d) => ({
-          id: d.id,
-          requestId: d.requestId,
-          requestTitle: d.request.title,
-          type: d.type,
-          date: d.createdAt.toISOString(),
-          status: d.status,
-          amount: d.amount ? Number(d.amount) : undefined,
-          items: d.itemDetails ? (typeof d.itemDetails === "string" ? JSON.parse(d.itemDetails) : d.itemDetails) : undefined,
-        })),
-        createdAt: user.createdAt.toISOString(),
-      };
-    } catch (error: any) {
-      console.error("Error in userService.findById:", error);
-      throw new Error(`Failed to find user by id: ${error.message}`);
+        donationRequests: {
+          select: {
+            id: true,
+            donations: {
+              select: { id: true, amount: true, type: true, status: true, createdAt: true },
+            },
+            volunteerApplications: {
+              select: { id: true, status: true, createdAt: true },
+            },
+          },
+        },
+        volunteerApplications: {
+          select: {
+            id: true,
+            request: {
+              select: { id: true, title: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      console.log(`User with ID ${id} not found`);
+      return null;
     }
-  },
+
+    const parseItemDetails = (itemDetails: any) => {
+      if (!itemDetails) return undefined;
+      try {
+        if (typeof itemDetails === "string") {
+          return JSON.parse(itemDetails);
+        }
+        return itemDetails;
+      } catch (parseError) {
+        console.warn(`Invalid itemDetails JSON for user ${id}:`, parseError);
+        return undefined;
+      }
+    };
+
+    console.log('Fetched user:', {
+      id: user.id,
+      email: user.email,
+      donationCount: user.donations.length,
+    });
+
+    return {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phone: user.phone || undefined,
+      avatar: user.avatar || undefined,
+      bio: user.bio || undefined,
+      joinDate: user.createdAt.toISOString(),
+      totalDonated: user.donations.reduce((sum: number, d) => sum + (d.amount ? Number(d.amount) : 0), 0),
+      donationCount: user.donations.length,
+      preferredCategories: user.userinterest.map((ui) => ui.interestId),
+      favoriteCategories: user.userinterest.map((ui) => ui.interestId),
+      interests: user.userinterest.map((ui) => ui.interestId),
+      role: user.role,
+      organizationId: user.organization?.id,
+      organizationName: user.organization?.name,
+      organizationType: user.organization?.type,
+      isVerified: user.isEmailVerified && (user.documentsVerified || user.role !== "ORGANIZER"),
+      isEmailVerified: user.isEmailVerified,
+      documentsVerified: user.documentsVerified,
+      donations: user.donations.map((d) => ({
+        id: d.id,
+        requestId: d.requestId,
+        requestTitle: d.request?.title || 'Unknown Request',
+        type: d.type,
+        date: d.createdAt.toISOString(),
+        status: d.status,
+        amount: d.amount ? Number(d.amount) : undefined,
+        items: parseItemDetails(d.itemDetails),
+      })),
+      createdAt: user.createdAt.toISOString(),
+    };
+  } catch (error: any) {
+    console.error("Error in userService.findById:", {
+      message: error.message,
+      code: error.code,
+      meta: error.meta,
+    });
+    throw new Error(`Failed to find user by id: ${error.message}`);
+  }
+},
 
   async update(id: string, data: Prisma.userUpdateInput): Promise<UserResponse | null> {
     try {

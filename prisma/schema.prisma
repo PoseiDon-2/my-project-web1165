@@ -65,22 +65,22 @@ model DonationRequest {
 }
 
 model Donation {
-  id            String          @id @default(cuid())
-  amount        Decimal         @default(0.00) @db.Decimal(12, 2)
-  itemDetails   String?
-  type          DonationType
-  status        DonationStatus  @default(PENDING)
-  donorId       String
-  requestId     String
+  id             String          @id @default(cuid())
+  amount         Decimal         @default(0.00) @db.Decimal(12, 2)
+  itemDetails    String?
+  type           DonationType
+  status         DonationStatus  @default(PENDING)
+  donorId        String
+  requestId      String
   requestTitle   String?
-  transactionId   String?
+  transactionId  String?
   paymentMethod  String?
   trackingNumber String?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  completedAt   DateTime?
-  donor         user            @relation(fields: [donorId], references: [id], onDelete: Cascade)
-  request       DonationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  completedAt    DateTime?
+  donor          user            @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  request        DonationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
   @@index([status])
   @@index([createdAt])

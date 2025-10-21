@@ -40,7 +40,7 @@ export default function ShareModal({ isOpen, onClose, donation, initialShowQR = 
     }
 
     // fallback ตอน dev SSR
-    return "http://localhost:3000";
+    return "http://10.198.200.70:8000";
   };
 
   const shareUrl = `${getBaseUrl()}/requests/${donation.id}`;

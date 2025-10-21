@@ -77,7 +77,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // ตั้งค่า base URL สำหรับ axios
-axios.defaults.baseURL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+axios.defaults.baseURL = process.env.NEXT_PUBLIC_API_URL || "http://10.198.200.70:8000";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (token) {
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
       axios
-        .get<{ user: User }>("/api/auth/me")
+        .get<{ user: User }>(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/me`) // แก้ relative URL
         .then((res) => {
           console.log("Fetched user data:", res.data.user);
           setUser({ ...res.data.user, token });
@@ -109,7 +109,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string): Promise<{ success: boolean; message?: string }> => {
     setIsLoading(true);
     try {
-      const res = await axios.post("/api/auth/login", { email, password });
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://10.198.200.70:8000";
+      const res = await axios.post(`${API_URL}/api/auth/login`, { email, password });
       const token = res.data.token;
       if (!token) throw new Error("Token not received");
 
@@ -148,7 +149,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (userData.documents?.idCard) formData.append("idCard", userData.documents.idCard);
       if (userData.documents?.organizationCert) formData.append("organizationCert", userData.documents.organizationCert);
 
-      const res = await axios.post("/api/register", formData, {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://10.198.200.70:8000";
+      const res = await axios.post(`${API_URL}/api/register`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
@@ -174,7 +176,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sendOTP = async (email: string): Promise<{ success: boolean; message?: string }> => {
     setIsLoading(true);
     try {
-      const res = await axios.post("/api/otp/send", { email });
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://10.198.200.70:8000";
+      const res = await axios.post(`${API_URL}/api/otp/send`, { email });
       console.log("OTP sent to:", email);
       setIsLoading(false);
       return { success: true, message: "ส่ง OTP สำเร็จ" };
@@ -191,7 +194,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const verifyOTP = async (email: string, otp: string): Promise<{ success: boolean; message?: string }> => {
     setIsLoading(true);
     try {
-      const res = await axios.post("/api/otp/verify", { email, otp });
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://10.198.200.70:8000";
+      const res = await axios.post(`${API_URL}/api/otp/verify`, { email, otp });
       console.log("OTP verification result:", res.data.success);
       setIsLoading(false);
       return { success: res.data.success, message: res.data.message || "ยืนยัน OTP สำเร็จ" };

@@ -1,20 +1,25 @@
 // prisma/seed.ts
-import { user_role, user_status, DonationRequestStatus, Prisma } from '@prisma/client';
+import { user_role, user_status, DonationRequestStatus, organization_type, Prisma } from '@prisma/client';
 import { hash } from 'bcryptjs';
-import prisma from '../lib/prisma';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 async function main() {
     console.log('🌱 เริ่มต้นการ seed ข้อมูลสำหรับแอดมิน...');
 
     try {
-        // ล้างข้อมูลในตารางที่มี foreign key อ้างถึง category ก่อน
-        await prisma.donationRequest.deleteMany();
-        await prisma.userinterest.deleteMany();
-        await prisma.relatedcategory.deleteMany();
-        await prisma.interest.deleteMany();
-        await prisma.category.deleteMany();
-        await prisma.user.deleteMany({ where: { role: user_role.ADMIN } });
-        await prisma.systemSettings.deleteMany();
+        // ปิดการตรวจสอบ foreign key ชั่วคราว
+        await prisma.$executeRaw`SET FOREIGN_KEY_CHECKS = 0`;
+
+        // ลบข้อมูลเก่า (ถ้ามีตาราง)
+        await prisma.donationRequest.deleteMany().catch(() => console.log('No donation_requests to delete'));
+        await prisma.userinterest.deleteMany().catch(() => console.log('No userinterest to delete'));
+        await prisma.relatedcategory.deleteMany().catch(() => console.log('No relatedcategory to delete'));
+        await prisma.interest.deleteMany().catch(() => console.log('No interest to delete'));
+        await prisma.category.deleteMany().catch(() => console.log('No category to delete'));
+        await prisma.user.deleteMany({ where: { role: user_role.ADMIN } }).catch(() => console.log('No admin users to delete'));
+        await prisma.systemSettings.deleteMany().catch(() => console.log('No system_settings to delete'));
         console.log('ล้างข้อมูลเก่าเรียบร้อย');
 
         // ตรวจสอบจำนวนแอดมิน
@@ -69,6 +74,15 @@ async function main() {
         await prisma.interest.createMany({ data: interests });
         console.log('สร้างความสนใจเรียบร้อย');
 
+        // Seed UserInterest (สำหรับ admin)
+        const userInterests = [
+            { userId: 'admin1', interestId: 'int1', categoryId: 'cat1' },
+            { userId: 'admin1', interestId: 'int2', categoryId: 'cat2' },
+            { userId: 'admin1', interestId: 'int3', categoryId: 'cat3' },
+        ];
+        await prisma.userinterest.createMany({ data: userInterests });
+        console.log('สร้าง userinterest สำหรับแอดมินเรียบร้อย');
+
         // Seed RelatedCategory
         const relatedCategories = [
             { id: 'rc1', categoryId: 'cat1', relatedCategoryId: 'cat2', similarity: 0.6 },
@@ -91,7 +105,7 @@ async function main() {
                 id: 'req10',
                 title: 'ช่วยเหลือครอบครัวประสบภัยน้ำท่วม',
                 description: 'ช่วยเหลือครอบครัวที่ได้รับผลกระทบจากน้ำท่วม',
-                slug: 'flood-relief-2025',
+                slug: 'flood-relief-2025-' + Date.now(),
                 images: JSON.stringify(['/placeholder.svg?height=600&width=400']),
                 categoryId: 'cat1',
                 acceptsMoney: true,
@@ -99,8 +113,8 @@ async function main() {
                 acceptsVolunteer: true,
                 targetAmount: new Prisma.Decimal(100000),
                 currentAmount: new Prisma.Decimal(0),
-                itemsNeeded: 'อาหารแห้ง, เสื้อผ้า, น้ำดื่ม',
-                volunteerDetails: 'ช่วยซ่อมแซมบ้าน, ขนย้ายสิ่งของ',
+                itemsNeeded: JSON.stringify(['อาหารแห้ง', 'เสื้อผ้า', 'น้ำดื่ม']),
+                volunteerDetails: JSON.stringify(['ช่วยซ่อมแซมบ้าน', 'ขนย้ายสิ่งของ']),
                 volunteersNeeded: 10,
                 volunteersReceived: 0,
                 location: 'กรุงเทพมหานคร',
@@ -109,22 +123,53 @@ async function main() {
                 organizerId: 'admin1',
                 status: DonationRequestStatus.APPROVED,
                 createdAt: new Date(),
-                expiresAt: new Date('2025-12-31'),
+                expiresAt: new Date('2025-11-16T23:59:59.999Z'), // 30 วันจาก 17 ตค. 2025
+                recommendationScore: 1.0,
+            },
+            {
+                id: 'cmgifbhma0000v6osefljl6ou',
+                title: 'ทดสอบที่ 1',
+                description: 'คำอธิบายสำหรับการทดสอบ',
+                slug: 'test-1-' + Date.now(),
+                images: JSON.stringify(['/images/test.jpg']),
+                categoryId: 'cat3',
+                acceptsMoney: true,
+                acceptsItems: false,
+                acceptsVolunteer: false,
+                targetAmount: new Prisma.Decimal(10000),
+                currentAmount: new Prisma.Decimal(0),
+                itemsNeeded: null,
+                volunteerDetails: null,
+                volunteersNeeded: 0,
+                volunteersReceived: 0,
+                location: 'กรุงเทพมหานคร',
+                latitude: 13.7563,
+                longitude: 100.5018,
+                organizerId: 'admin1',
+                status: DonationRequestStatus.APPROVED,
+                createdAt: new Date(),
+                expiresAt: new Date('2025-11-16T23:59:59.999Z'),
+                recommendationScore: 1.0,
             },
         ];
         await prisma.donationRequest.createMany({ data: donationRequests });
         console.log('สร้างคำขอรับบริจาคเรียบร้อย');
 
+        // เปิด foreign key checks
+        await prisma.$executeRaw`SET FOREIGN_KEY_CHECKS = 1`;
+
         console.log('✅ Seed ข้อมูลสำหรับแอดมินสำเร็จ!');
     } catch (error) {
         console.error('❌ เกิดข้อผิดพลาดในการ seed:', error);
         throw error;
-    } finally {
-        await prisma.$disconnect();
     }
 }
 
-main().catch((e) => {
-    console.error('❌ เกิดข้อผิดพลาด:', e);
-    process.exit(1);
-});
+main()
+    .catch((e) => {
+        console.error('❌ เกิดข้อผิดพลาด:', e);
+        process.exit(1);
+    })
+    .finally(async () => {
+        await prisma.$disconnect();
+    });

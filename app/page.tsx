@@ -1,85 +1,102 @@
-"use client"
+// components/DonationSwipe.tsx
+"use client";
 
-import { useState, useEffect } from "react"
-import { Heart, X, MapPin, Users, Calendar, Share2, ExternalLink, List, QrCode } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { useRouter } from "next/navigation"
-import { Separator } from "@/components/ui/separator"
-import ShareModal from "../components/share-modal"
-import { useAuth } from "../components/auth-context"
-import StoryPreview from "../components/story-preview"
+import { useState, useEffect } from "react";
+import { Heart, X, MapPin, Users, Calendar, Share2, ExternalLink, List, QrCode } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { useRouter } from "next/navigation";
+import { Separator } from "@/components/ui/separator";
+import ShareModal from "../components/share-modal";
+import { useAuth } from "../components/auth-context";
+import StoryPreview from "../components/story-preview";
 
-// อัปเดต interface ให้สอดคล้องกับ Prisma schema และ backend
 interface DonationRequest {
-  id: string
-  title: string
-  description: string
-  category: { name: string }
-  address: string | null
-  goalAmount: number
-  currentAmount: string // เปลี่ยนเป็น string เพื่อรับ Decimal จาก backend
-  daysLeft?: number
-  supporters: number
-  images: string[] | null // เปลี่ยนจาก image เป็น images
-  organizer: { firstName: string | null; lastName: string | null }
-  status: string
-  urgency: string | null
-  score?: number // จาก recommendations
+  id: string;
+  title: string;
+  description: string;
+  category: { name: string };
+  address: string | null;
+  targetAmount: string | null;
+  currentAmount: string;
+  daysLeft?: number;
+  supporters: number;
+  images: string[] | null;
+  organizer: { firstName: string | null; lastName: string | null };
+  status: string;
+  urgency: string | null;
+  score?: number;
 }
 
 interface StoryGroup {
-  donationRequestId: string
-  organizer: string
-  avatar: string
-  hasUnviewed: boolean
-  storyCount: number
+  donationRequestId: string;
+  organizer: string;
+  avatar: string;
+  hasUnviewed: boolean;
+  storyCount: number;
 }
 
 export default function DonationSwipe() {
-  const [donationRequests, setDonationRequests] = useState<DonationRequest[]>([])
-  const [storyGroups, setStoryGroups] = useState<StoryGroup[]>([])
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const [likedRequests, setLikedRequests] = useState<string[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const { user } = useAuth()
-  const router = useRouter()
-  const [showShareModal, setShowShareModal] = useState(false)
-  const [showQR, setShowQR] = useState(false)
+  const [donationRequests, setDonationRequests] = useState<DonationRequest[]>([]);
+  const [storyGroups, setStoryGroups] = useState<StoryGroup[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [likedRequests, setLikedRequests] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { user, isLoading: authLoading } = useAuth();
+  const router = useRouter();
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [showQR, setShowQR] = useState(false);
 
-  // Fetch recommendations
   useEffect(() => {
     const fetchRecommendations = async () => {
-      try {
-        setLoading(true)
-        const donationResponse = await fetch(
-          user ? `/api/recommendations/donation-requests?userId=${user.id}` : "/api/donation-requests",
-          { headers: { "Content-Type": "application/json" } }
-        )
-        const donationData = await donationResponse.json()
-        if (!donationResponse.ok) throw new Error(donationData.error || "Failed to fetch donation requests")
-        setDonationRequests(donationData)
+      if (authLoading) {
+        console.log('Auth is loading, skipping fetch');
+        return;
+      }
 
-        // Fetch story groups
+      try {
+        setLoading(true);
+        console.log('Fetching recommendations for user:', user?.id);
+        let endpoint = "/api/donation-requests";
+        if (user?.id) {
+          endpoint = `/api/recommendations/donation-requests?userId=${user.id}`;
+        }
+        const donationResponse = await fetch(endpoint, {
+          headers: { "Content-Type": "application/json" },
+          cache: 'no-store',
+        });
+        console.log('Donation response status:', donationResponse.status);
+        const donationText = await donationResponse.text();
+        console.log('Donation response body:', donationText);
+        const donationData = JSON.parse(donationText);
+        if (!donationResponse.ok) throw new Error(donationData.error || "Failed to fetch donation requests");
+        console.log('Donation data:', donationData);
+        setDonationRequests(donationData);
+
         const storyResponse = await fetch("/api/stories/groups", {
           headers: { "Content-Type": "application/json" },
-        })
-        const storyData = await storyResponse.json()
-        if (!storyResponse.ok) throw new Error(storyData.error || "Failed to fetch stories")
-        setStoryGroups(storyData)
+          cache: 'no-store',
+        });
+        console.log('Story response status:', storyResponse.status);
+        const storyText = await storyResponse.text();
+        console.log('Story response body:', storyText);
+        const storyData = JSON.parse(storyText);
+        if (!storyResponse.ok) throw new Error(storyData.error || "Failed to fetch stories");
+        console.log('Story data:', storyData);
+        setStoryGroups(storyData);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการโหลดข้อมูล")
+        console.error('Fetch error:', err);
+        setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการโหลดข้อมูล");
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
-    fetchRecommendations()
-  }, [user])
+    };
+    fetchRecommendations();
+  }, [user, authLoading]);
 
-  // Track VIEW interaction
   const handleViewDetails = async (requestId: string) => {
     if (user) {
       try {
@@ -93,18 +110,18 @@ export default function DonationSwipe() {
             interactionType: "VIEW",
             interactionValue: 1,
           }),
-        })
-        console.log("VIEW interaction recorded successfully.")
+        });
+        console.log("VIEW interaction recorded for request:", requestId);
       } catch (err) {
-        console.error("Failed to record VIEW:", err)
+        console.error("Failed to record VIEW:", err);
       }
     }
-  }
+    router.push(`/donation/${requestId}`);
+  };
 
-  // Handle swipe (FAVORITE or SKIP)
   const handleSwipe = async (liked: boolean) => {
-    const currentRequest = donationRequests[currentIndex]
-    if (!currentRequest) return
+    const currentRequest = donationRequests[currentIndex];
+    if (!currentRequest) return;
 
     try {
       if (user) {
@@ -118,31 +135,30 @@ export default function DonationSwipe() {
             interactionType: liked ? "FAVORITE" : "SKIP",
             interactionValue: liked ? 2 : 0,
           }),
-        })
+        });
+        console.log(`${liked ? 'FAVORITE' : 'SKIP'} interaction recorded for request:`, currentRequest.id);
       }
 
       if (liked) {
-        const updatedLikes = [...likedRequests, currentRequest.id]
-        setLikedRequests(updatedLikes)
-        localStorage.setItem("likedDonations", JSON.stringify(updatedLikes))
+        const updatedLikes = [...likedRequests, currentRequest.id];
+        setLikedRequests(updatedLikes);
+        localStorage.setItem("likedDonations", JSON.stringify(updatedLikes));
       }
     } catch (err) {
-      console.error("Failed to record interaction:", err)
-      setError("ไม่สามารถบันทึกการโต้ตอบได้")
+      console.error("Failed to record interaction:", err);
+      setError("ไม่สามารถบันทึกการโต้ตอบได้");
     }
 
-    // Update index
     if (currentIndex < donationRequests.length - 1) {
-      setCurrentIndex(currentIndex + 1)
+      setCurrentIndex(currentIndex + 1);
     } else {
-      setCurrentIndex(0)
+      setCurrentIndex(0);
     }
-  }
+  };
 
-  // Handle share
   const handleShare = async (platform: string) => {
-    const currentRequest = donationRequests[currentIndex]
-    if (!currentRequest || !user) return
+    const currentRequest = donationRequests[currentIndex];
+    if (!currentRequest || !user) return;
 
     try {
       await fetch("/api/interactions", {
@@ -155,17 +171,17 @@ export default function DonationSwipe() {
           interactionType: "SHARE",
           interactionValue: 3,
         }),
-      })
+      });
+      console.log("SHARE interaction recorded for request:", currentRequest.id);
     } catch (err) {
-      console.error("Failed to record SHARE:", err)
+      console.error("Failed to record SHARE:", err);
     }
-  }
+  };
 
   const formatAmount = (amount: string | number) => {
-    return new Intl.NumberFormat("th-TH").format(Number(amount))
-  }
+    return new Intl.NumberFormat("th-TH").format(Number(amount));
+  };
 
-  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center p-4">
@@ -174,10 +190,9 @@ export default function DonationSwipe() {
           <p className="text-gray-600 mt-4">กำลังโหลด...</p>
         </div>
       </div>
-    )
+    );
   }
 
-  // Error state
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 flex items-center justify-center p-4">
@@ -187,15 +202,13 @@ export default function DonationSwipe() {
           <p className="text-gray-600">{error}</p>
         </div>
       </div>
-    )
+    );
   }
 
-  // No data state - Invitation to create donation request
   if (!donationRequests.length || !donationRequests[currentIndex]) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 p-4">
         <div className="max-w-md mx-auto">
-          {/* Header */}
           <div className="flex items-center justify-between mb-6 pt-4">
             <h1 className="text-2xl font-bold text-gray-800">💝 DonateSwipe</h1>
             <div className="flex items-center gap-2">
@@ -238,7 +251,6 @@ export default function DonationSwipe() {
             </div>
           </div>
 
-          {/* Stories Section */}
           {storyGroups.length > 0 && (
             <div className="mb-6">
               <div className="flex items-center justify-between mb-3">
@@ -261,7 +273,6 @@ export default function DonationSwipe() {
             </div>
           )}
 
-          {/* Invitation Card */}
           <Card className="overflow-hidden shadow-2xl border-0 bg-white">
             <CardHeader>
               <CardTitle className="text-2xl font-bold text-gray-800 text-center">
@@ -302,7 +313,6 @@ export default function DonationSwipe() {
             </CardContent>
           </Card>
 
-          {/* Action Buttons (Disabled) */}
           <div className="flex justify-center gap-6 mt-8">
             <Button
               size="lg"
@@ -321,22 +331,22 @@ export default function DonationSwipe() {
             </Button>
           </div>
 
-          {/* Instructions */}
           <div className="text-center mt-8 text-sm text-gray-500">
-            <p>ไม่มีคำขอรับบริจาคในขณะนี้ เริ่มสร้างคำขอเพื่อแชร์เรื่องราวของคุณ!</p>
+            <p>ไม่มีคำขอรับบริจาคในขณะนี้ อาจไม่มีคำขอที่ตรงกับเงื่อนไข ลองดูรายการทั้งหมดหรือสร้างคำขอใหม่!</p>
           </div>
         </div>
       </div>
-    )
+    );
   }
 
-  const currentRequest = donationRequests[currentIndex]
-  const progressPercentage = (Number(currentRequest.currentAmount) / currentRequest.goalAmount) * 100
+  const currentRequest = donationRequests[currentIndex];
+  const progressPercentage = currentRequest.targetAmount
+    ? (Number(currentRequest.currentAmount) / Number(currentRequest.targetAmount)) * 100
+    : 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 to-purple-50 p-4">
       <div className="max-w-md mx-auto">
-        {/* Header */}
         <div className="flex items-center justify-between mb-6 pt-4">
           <h1 className="text-2xl font-bold text-gray-800">💝 DonateSwipe</h1>
           <div className="flex items-center gap-2">
@@ -379,7 +389,6 @@ export default function DonationSwipe() {
           </div>
         </div>
 
-        {/* Stories Section */}
         {storyGroups.length > 0 && (
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
@@ -402,7 +411,6 @@ export default function DonationSwipe() {
           </div>
         )}
 
-        {/* Main Card */}
         <div className="relative">
           <Card className="overflow-hidden shadow-2xl border-0 bg-white">
             <div className="relative">
@@ -449,7 +457,7 @@ export default function DonationSwipe() {
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">ระดมทุนได้</span>
                       <span className="font-semibold text-gray-800">
-                        ฿{formatAmount(currentRequest.currentAmount)} / ฿{formatAmount(currentRequest.goalAmount)}
+                        ฿{formatAmount(currentRequest.currentAmount)} / ฿{formatAmount(currentRequest.targetAmount || 0)}
                       </span>
                     </div>
                     <Progress value={progressPercentage} className="h-2" />
@@ -469,8 +477,7 @@ export default function DonationSwipe() {
                     variant="outline"
                     className="w-full mt-2 border-pink-200 text-pink-600 hover:bg-pink-50 bg-transparent"
                     onClick={() => {
-                      handleViewDetails(currentRequest.id)
-                      router.push(`/donation/${currentRequest.id}`)
+                      handleViewDetails(currentRequest.id);
                     }}
                   >
                     <ExternalLink className="w-4 h-4 mr-2" />
@@ -481,7 +488,6 @@ export default function DonationSwipe() {
             </div>
           </Card>
 
-          {/* Action Buttons */}
           <div className="flex justify-center gap-6 mt-8">
             <Button
               size="lg"
@@ -501,7 +507,6 @@ export default function DonationSwipe() {
             </Button>
           </div>
 
-          {/* Progress Indicator */}
           <div className="flex justify-center mt-6 gap-2">
             {donationRequests.map((_, index) => (
               <div
@@ -512,13 +517,11 @@ export default function DonationSwipe() {
           </div>
         </div>
 
-        {/* Instructions */}
         <div className="text-center mt-8 text-sm text-gray-500">
           <p>กดปุ่ม ❤️ เพื่อสนับสนุน หรือ ✕ เพื่อข้าม</p>
         </div>
       </div>
 
-      {/* Share Modal */}
       <ShareModal
         isOpen={showShareModal}
         onClose={() => setShowShareModal(false)}
@@ -528,7 +531,7 @@ export default function DonationSwipe() {
           description: currentRequest.description,
           imageUrl: currentRequest.images?.[0] || undefined,
           currentAmount: Number(currentRequest.currentAmount),
-          goalAmount: currentRequest.goalAmount,
+          goalAmount: Number(currentRequest.targetAmount || 0),
           supporters: currentRequest.supporters,
           organizer: currentRequest.organizer
             ? `${currentRequest.organizer.firstName ?? ""} ${currentRequest.organizer.lastName ?? ""}`
@@ -537,5 +540,5 @@ export default function DonationSwipe() {
         initialShowQR={showQR}
       />
     </div>
-  )
+  );
 }

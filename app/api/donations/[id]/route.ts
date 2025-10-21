@@ -1,17 +1,35 @@
 // app/api/donation/[id]/route.ts
 import { NextResponse } from 'next/server';
-import prisma from "@/lib/prisma";
+import prisma from '@/lib/prisma';
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
     try {
+        console.log('Fetching donation request with ID:', params.id);
+
         const donation = await prisma.donationRequest.findUnique({
             where: { id: params.id },
             include: {
                 category: { select: { name: true } },
-                organizer: { select: { firstName: true, lastName: true, avatar: true, phone: true, documentsVerified: true, organization: true } },
-                organization: { select: { name: true, type: true } },
+                organizer: {
+                    select: {
+                        firstName: true,
+                        lastName: true,
+                        avatar: true,
+                        phone: true,
+                        documentsVerified: true,
+                        organization: { select: { name: true, type: true } } // organization เป็น optional
+                    }
+                },
+                organization: { select: { name: true, type: true } }, // organization เป็น optional
                 donations: {
-                    select: { id: true, amount: true, itemDetails: true, type: true, createdAt: true, donor: { select: { firstName: true, lastName: true } } },
+                    select: {
+                        id: true,
+                        amount: true,
+                        itemDetails: true,
+                        type: true,
+                        createdAt: true,
+                        donor: { select: { firstName: true, lastName: true } }
+                    },
                     where: { status: 'COMPLETED' },
                 },
                 stories: {
@@ -27,10 +45,15 @@ export async function GET(request: Request, { params }: { params: { id: string }
         });
 
         if (!donation) {
-            return NextResponse.json({ error: 'Donation not found' }, { status: 404 });
+            console.log(`Donation request with ID ${params.id} not found`);
+            return NextResponse.json(
+                { error: `Donation request with ID ${params.id} not found` },
+                { status: 404 }
+            );
         }
 
-        return NextResponse.json(donation);
+        console.log('Found donation request:', donation);
+        return NextResponse.json(donation, { headers: { 'Cache-Control': 'no-store' } });
     } catch (error) {
         console.error('Error fetching donation:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -181,15 +181,19 @@ export async function GET(request: NextRequest) {
       acceptsVolunteer: acceptsVolunteerValue,
     };
 
-    // สำหรับ organizer, แสดง requests ทั้งหมดของเขา (ไม่กรอง status ถ้าไม่มี query param)
+    // แก้ไข: สำหรับ ORGANIZER, แสดง requests ของตัวเอง + requests อื่นๆ ที่ APPROVED
     if (user?.role === "ORGANIZER") {
-      whereClause.organizerId = user.id;
-      if (validStatus) {
-        whereClause.status = validStatus;
-      }
+      whereClause.OR = [
+        { organizerId: user.id },  // Requests ของตัวเอง
+        {
+          status: validStatus ?? DonationRequestStatus.APPROVED,
+          expiresAt: { gt: new Date() }
+        }  // Requests อื่นๆ ที่ APPROVED
+      ];
     } else {
-      // สำหรับ guest หรือผู้ใช้ทั่วไป, แสดงเฉพาะ APPROVED
+      // สำหรับ guest, แสดงเฉพาะ APPROVED
       whereClause.status = validStatus ?? DonationRequestStatus.APPROVED;
+      whereClause.expiresAt = { gt: new Date() };
     }
 
     console.log("Query whereClause:", whereClause); // Debug where clause
@@ -218,7 +222,7 @@ export async function GET(request: NextRequest) {
 
     console.log("Query result count:", result.length); // Debug result count
 
-    // แปลงข้อมูลให้ตรงกับ interface DonationRequest
+    // แปลงข้อมูล
     const formattedResult = result.map((request) => {
       const supporters = request.donations.length + request.volunteerApplications.length;
       const daysLeft = request.expiresAt
@@ -230,7 +234,6 @@ export async function GET(request: NextRequest) {
         )
         : 0;
 
-      // Parse images จาก Json เป็น string[]
       let images: string[] = [];
       if (request.images) {
         try {
@@ -248,7 +251,7 @@ export async function GET(request: NextRequest) {
         goalAmount: Number(request.targetAmount),
         currentAmount: Number(request.currentAmount),
         supporters,
-        status: request.status, // คงค่า status เป็น uppercase เพื่อให้สอดคล้องกับ backend
+        status: request.status,
         createdDate: request.createdAt.toISOString(),
         daysLeft,
         images,

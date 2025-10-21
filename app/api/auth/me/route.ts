@@ -12,14 +12,19 @@ interface DecodedToken {
 export async function GET(request: NextRequest) {
     try {
         const authHeader = request.headers.get("authorization");
+        console.log('Authorization header:', authHeader);
         if (!authHeader) {
             return NextResponse.json({ message: "ไม่มี token" }, { status: 401 });
         }
 
         const token = authHeader.replace("Bearer ", "");
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || "your-jwt-secret") as DecodedToken;
+        console.log('Token:', token);
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || "another_new_random_secret_here") as DecodedToken;
+        console.log('Decoded token:', decoded);
 
         const user = await userService.findById(decoded.id);
+        console.log('User fetched:', user);
         if (!user) {
             return NextResponse.json({ message: "ไม่พบผู้ใช้" }, { status: 404 });
         }
